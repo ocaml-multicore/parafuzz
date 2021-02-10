@@ -62,17 +62,17 @@ type id = Raw.t
 
 type 'a state =
 | Running
-| Joining of ('a, exn) result option ref * id
+| Joining of ('a, exn) result option ref * Mutex.t * Condition.t
 | Finished of ('a, exn) result
 | Joined
 
 type 'a t =
-  { domain : Raw.t; state : 'a state Atomic.t }
+    { domain : Raw.t; state : 'a state Atomic.t; mutex : Mutex.t; cond : Condition.t }
 
 exception Retry
 let rec spin f =
   try f () with Retry ->
-     Raw.cpu_relax ();
+(*      Raw.cpu_relax (); *)
      spin f
 
 let cas r vold vnew =
@@ -86,30 +86,37 @@ let spawn f =
       | exception ex -> Error ex in
     (* Begin a critical section that is ended by domain
        termination *)
-    Raw.critical_adjust (+1);
+(*     Raw.critical_adjust (+1); *)
     spin (fun () ->
       match Atomic.get state with
       | Running ->
          cas state Running (Finished result)
-      | Joining (r, d) as old ->
+      | Joining (r, mutex, cond) as old ->
          cas state old Joined;
+         Mutex.lock mutex;
          r := Some result;
-         Raw.interrupt d
+         Condition.signal cond;
+         Mutex.unlock mutex
+(*          Raw.interrupt d *)
       | Joined | Finished _ ->
          failwith "internal error: I'm already finished?") in
-  { domain = Raw.spawn body; state }
+  let mutex = Mutex.create () in
+  { domain = Raw.spawn body; state; mutex; cond = Condition.create mutex }
 
-let join { domain ; state } =
+let join { domain ; state; mutex; cond } =
   let res = spin (fun () ->
     match Atomic.get state with
     | Running ->
        let res = ref None in
-       cas state Running (Joining (res, Raw.self ()));
-       spin (fun () ->
-         Sync.critical_section (fun () ->
-           match !res with
-           | None -> Sync.wait (); raise Retry
-           | Some r -> r))
+       cas state Running (Joining (res, mutex, cond));
+       Mutex.lock mutex;
+       let rec check_res () = match !res with
+           | None -> Condition.wait cond; check_res ()
+           | Some r -> r
+       in
+       let r = check_res () in
+       Mutex.unlock mutex;
+       r
     | Finished res as old ->
        cas state old Joined;
        res
@@ -118,7 +125,7 @@ let join { domain ; state } =
   (* Wait until the domain has terminated.
      The domain is in a critical section which will be
      ended by the runtime when it terminates *)
-  Sync.notify domain;
+(*   Sync.notify domain; *)
   match res with
   | Ok x -> x
   | Error ex -> raise ex
