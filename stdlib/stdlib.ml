@@ -626,6 +626,7 @@ module Queue        = Queue
 module Random       = Random
 module Result       = Result
 module Scanf        = Scanf
+module Scheduler    = Scheduler
 module Seq          = Seq
 module Set          = Set
 module Spacetime    = Spacetime

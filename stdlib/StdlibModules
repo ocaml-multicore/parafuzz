@@ -26,6 +26,7 @@ STDLIB_MODULES=\
   camlinternalFormatBasics \
   stdlib \
   $(P)pervasives \
+  $(P)scheduler \
   $(P)atomic \
   $(P)seq \
   $(P)option \

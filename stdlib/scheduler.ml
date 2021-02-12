@@ -11,10 +11,11 @@ let resume (k,v) = perform (Resume (k,v))
 let context_switch () = perform Context_switch
 
 let run main = 
-    match main () with
+    main ()
+(*    match main () with
     | () -> ()
     | effect Context_switch k -> ()
     | effect (Fork f) k -> ()
     | effect (Suspend f) k -> f k; ()
-    | effect (Resume (k',v)) k -> ()
+    | effect (Resume (k',v)) k -> () *)
 

@@ -1,7 +1,7 @@
 module Raw = struct
   (* Low-level primitives provided by the runtime *)
   type t = private int
-  external critical_adjust : int -> unit
+(*  external critical_adjust : int -> unit
     = "caml_ml_domain_critical_section"
   external interrupt : t -> unit
     = "caml_ml_domain_interrupt"
@@ -9,7 +9,7 @@ module Raw = struct
     = "caml_ml_domain_yield"
   type timeout_or_notified = Timeout | Notified
   external wait_until : int64 -> timeout_or_notified
-    = "caml_ml_domain_yield_until"
+    = "caml_ml_domain_yield_until"*)
   external spawn : (unit -> unit) -> t
     = "caml_domain_spawn"
   external self : unit -> t
@@ -24,7 +24,7 @@ external timer_ticks : unit -> (int64 [@unboxed]) =
 
 module Sync = struct
   exception Retry
-  let rec critical_section f =
+  let critical_section _ =
     failwith "critical_section not implemented"
     (*Raw.critical_adjust (+1);
     match f () with
@@ -32,7 +32,7 @@ module Sync = struct
     | exception Retry -> Raw.critical_adjust (-1); Raw.cpu_relax (); critical_section f
     | exception ex -> Raw.critical_adjust (-1); raise ex *)
 
-  let notify d = 
+  let notify _ = 
       failwith "notify not implemented"
 (*       Raw.interrupt d *)
 
@@ -41,14 +41,14 @@ module Sync = struct
 (*       Raw.wait () *)
 
   type timeout_or_notified =
-    Raw.timeout_or_notified =
+(*     Raw.timeout_or_notified = *)
       Timeout | Notified
 
-  let wait_until t = 
+  let wait_until _ = 
       failwith "wait_until not implemented"
 (*       Raw.wait_until t *)
 
-  let wait_for dt = 
+  let wait_for _ = 
       failwith "wait_for not implemented"
 (*       Raw.wait_until (Int64.add (timer_ticks ()) dt) *)
 
@@ -117,7 +117,7 @@ let spawn f =
   let mutex = Mutex.create () in
   { domain = Raw.spawn body; state; mutex; cond = Condition.create mutex }
 
-let join { domain ; state; mutex; cond } =
+let join { state; mutex; cond } =
   let res = spin (fun () ->
     match Atomic.get state with
     | Running ->

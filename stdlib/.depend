@@ -32,8 +32,10 @@ stdlib__arrayLabels.cmx : \
 stdlib__arrayLabels.cmi : \
     stdlib__seq.cmi
 stdlib__atomic.cmo : \
+    stdlib__scheduler.cmi \
     stdlib__atomic.cmi
 stdlib__atomic.cmx : \
+    stdlib__scheduler.cmx \
     stdlib__atomic.cmi
 stdlib__atomic.cmi :
 stdlib__bigarray.cmo : \
@@ -195,12 +197,10 @@ stdlib__digest.cmx : \
 stdlib__digest.cmi :
 stdlib__domain.cmo : \
     stdlib__obj.cmi \
-    stdlib__int64.cmi \
     stdlib__atomic.cmi \
     stdlib__domain.cmi
 stdlib__domain.cmx : \
     stdlib__obj.cmx \
-    stdlib__int64.cmx \
     stdlib__atomic.cmx \
     stdlib__domain.cmi
 stdlib__domain.cmi :
@@ -578,6 +578,11 @@ stdlib__scanf.cmx : \
     stdlib__scanf.cmi
 stdlib__scanf.cmi : \
     stdlib.cmi
+stdlib__scheduler.cmo : \
+    stdlib__scheduler.cmi
+stdlib__scheduler.cmx : \
+    stdlib__scheduler.cmi
+stdlib__scheduler.cmi :
 stdlib__seq.cmo : \
     stdlib__seq.cmi
 stdlib__seq.cmx : \
@@ -665,6 +670,11 @@ stdlib__sys.cmo : \
 stdlib__sys.cmx : \
     stdlib__sys.cmi
 stdlib__sys.cmi :
+thread_afl_instrumentation.cmo : \
+    thread_afl_instrumentation.cmi
+thread_afl_instrumentation.cmx : \
+    thread_afl_instrumentation.cmi
+thread_afl_instrumentation.cmi :
 stdlib__uchar.cmo : \
     stdlib.cmi \
     stdlib__char.cmi \
