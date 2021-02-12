@@ -1,13 +1,20 @@
 effect Context_switch : unit
+effect Fork           : (unit -> unit) -> unit
 
-let handle_context_switch k = 
-(*     Add k to the continuation queue *)
-(*     select a continuation & resume it by continue  *)
-    ()
+type 'a cont = ('a,unit) continuation
+effect Suspend : ('a cont -> unit) -> 'a
+effect Resume  : ('a cont * 'a) -> unit
 
-let context_switch () = 
-    match perform Context_switch with
-    | () -> ( Thread_afl_instrumentation.context_switch_instrument (); () )
-    | effect Context_switch k ->
-            handle_context_switch k
+let fork f = perform (Fork f)
+let suspend f = perform (Suspend f)
+let resume (k,v) = perform (Resume (k,v))
+let context_switch () = perform Context_switch
+
+let run main = 
+    match main () with
+    | () -> ()
+    | effect Context_switch k -> ()
+    | effect (Fork f) k -> ()
+    | effect (Suspend f) k -> f k; ()
+    | effect (Resume (k',v)) k -> ()
 
