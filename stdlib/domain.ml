@@ -25,19 +25,33 @@ external timer_ticks : unit -> (int64 [@unboxed]) =
 module Sync = struct
   exception Retry
   let rec critical_section f =
-    Raw.critical_adjust (+1);
+    failwith "critical_section not implemented"
+    (*Raw.critical_adjust (+1);
     match f () with
     | x -> Raw.critical_adjust (-1); x
     | exception Retry -> Raw.critical_adjust (-1); Raw.cpu_relax (); critical_section f
-    | exception ex -> Raw.critical_adjust (-1); raise ex
+    | exception ex -> Raw.critical_adjust (-1); raise ex *)
 
-  let notify d = Raw.interrupt d
-  let wait () = Raw.wait ()
+  let notify d = 
+      failwith "notify not implemented"
+(*       Raw.interrupt d *)
+
+  let wait () =  
+      failwith "wait not implemented"
+(*       Raw.wait () *)
+
   type timeout_or_notified =
     Raw.timeout_or_notified =
       Timeout | Notified
-  let wait_until t = Raw.wait_until t
-  let wait_for dt = Raw.wait_until (Int64.add (timer_ticks ()) dt)
+
+  let wait_until t = 
+      failwith "wait_until not implemented"
+(*       Raw.wait_until t *)
+
+  let wait_for dt = 
+      failwith "wait_for not implemented"
+(*       Raw.wait_until (Int64.add (timer_ticks ()) dt) *)
+
   let cpu_relax () = Raw.cpu_relax ()
   external poll : unit -> unit = "%poll"
 end
