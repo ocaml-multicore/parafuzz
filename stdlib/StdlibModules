@@ -27,7 +27,6 @@ STDLIB_MODULES=\
   stdlib \
   $(P)pervasives \
   $(P)scheduler \
-  $(P)atomic \
   $(P)seq \
   $(P)option \
   $(P)result \
@@ -35,6 +34,7 @@ STDLIB_MODULES=\
   $(P)char \
   $(P)uchar \
   $(P)sys \
+  $(P)atomic \
   $(P)list \
   $(P)bytes \
   $(P)string \
