@@ -8,22 +8,22 @@ external _fetch_and_add : int t -> int -> int = "%atomic_fetch_add"
 
 let get r = 
     Scheduler.context_switch ();
-    let _ = if true then () else () in
+    let _ = if Sys.opaque_identity true then () else () in
     _get r
 
 let exchange r x = 
     Scheduler.context_switch ();
-    let _ = if true then () else () in
+    let _ = if Sys.opaque_identity true then () else () in
     _exchange r x
 
 let compare_and_set r x y = 
     Scheduler.context_switch (); 
-    let _ = if true then () else () in
+    let _ = if Sys.opaque_identity true then () else () in
     _compare_and_set r x y
 
 let fetch_and_add r x = 
     Scheduler.context_switch ();
-    let _ = if true then () else () in
+    let _ = if Sys.opaque_identity true then () else () in
     _fetch_and_add r x
 
 let set r x =
