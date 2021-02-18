@@ -1,3 +1,8 @@
+module type AFLQueue = sig
+    val enqueue : (unit -> unit) -> unit
+    val dequeue : unit -> (unit -> unit)
+end
+
 type 'a cont
 (** Represents a blocked computation that waits for a value of type 'a. *)
 
@@ -16,6 +21,6 @@ val resume : ('a cont * 'a) -> unit
 (** [resume (k,v)] prepares the suspended continuation [k] with value [v] and
  *  enqueues it to the scheduler queue. *)
 
-val run : (unit -> unit) -> unit
-(** [run f] runs [f] with the AFL controlled scheduler. *)
+val run : (module AFLQueue) ->  (unit -> unit) -> unit
+(** [run m f] runs [f] with the AFL controlled scheduler [m]. *)
 

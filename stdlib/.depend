@@ -32,9 +32,11 @@ stdlib__arrayLabels.cmx : \
 stdlib__arrayLabels.cmi : \
     stdlib__seq.cmi
 stdlib__atomic.cmo : \
+    stdlib__sys.cmi \
     stdlib__scheduler.cmi \
     stdlib__atomic.cmi
 stdlib__atomic.cmx : \
+    stdlib__sys.cmx \
     stdlib__scheduler.cmx \
     stdlib__atomic.cmi
 stdlib__atomic.cmi :
