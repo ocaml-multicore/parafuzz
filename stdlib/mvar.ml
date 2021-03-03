@@ -49,7 +49,7 @@ module Make(Scheduler : S) : MVar_type = struct
 		if Queue.is_empty wait_q then 
 			(mvar := Empty((Queue.create ())); value)
 		else 
-			(let (nvalue, waiting_f, id) = Queue.pop wait_q in
+			(let (waiting_f, nvalue, id) = Queue.pop wait_q in
 			(mvar := Filled(nvalue, wait_q); 
       Scheduler.resume (waiting_f, (), id);
 				value))    
@@ -61,15 +61,16 @@ module Make(Scheduler : S) : MVar_type = struct
 		else 
 			let (waiting_f,id) = Queue.pop wait_q in 
 			Scheduler.resume (waiting_f, v, id)
-	| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (v, cont) wait_q)
+	| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
 
 	let put_all v mvar = match (!mvar) with
 	| Empty (wait_q) -> 
 		if Queue.is_empty wait_q then 
 			mvar := Filled(v, Queue.create ()) 
 		else 
-			let waiting_f = Queue.pop wait_q in  (* Here call the scheduler to pick which thread has to be woken up *)
-			Scheduler.resume (waiting_f, v, id)
-	| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (v, cont) wait_q)
+      Queue.iter (fun (cont, id) -> Scheduler.resume (cont, v, id)) wait_q; 
+      Queue.clear wait_q; 
+      mvar := Filled(v, Queue.create ())
+	| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
 
 end
