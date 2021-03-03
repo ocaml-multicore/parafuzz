@@ -32,3 +32,5 @@ val range : ?min:int -> int -> int
 val run : (module AFLQueue) -> (unit -> unit) -> unit
 (** [run m f] runs [f] with the AFL controlled scheduler [m]. *)
 
+val get_id : unit -> int
+(* Returns the ID of the current thread running *)

@@ -57,19 +57,47 @@ module Sync = struct
 end
 
 module Mutex = struct
-  type t
-  external create : unit -> t = "caml_mutex_new"
-  external lock : t -> unit = "caml_mutex_lock"
-  external unlock : t -> unit = "caml_mutex_unlock" [@@noalloc]
-  external try_lock : t -> bool = "caml_mutex_try_lock" [@@noalloc]
+
+  module MVar = Mvar.Make(Scheduler)
+
+  open Scheduler
+
+  type t = int MVar.t
+
+  exception LockNotHeld
+
+  let create = MVar.make_empty
+
+  let lock mut = MVar.put (Scheduler.get_id ()) mut 
+
+  let unlock mut = let id = (get_id ()) in
+    match (MVar.get mut) with
+  | effect (Suspend f) k -> raise LockNotHeld
+  | thread_id -> if id = thread_id then () else raise LockNotHeld
+
+  let try_lock mut = match (MVar.put (Scheduler.get_id ()) mut) with
+  | effect (Suspend f) cont -> false
+  | () -> true
+
 end
 
 module Condition = struct
-  type t
-  external create : Mutex.t -> t = "caml_condition_new"
-  external wait : t -> unit = "caml_condition_wait"
-  external broadcast : t -> unit = "caml_condition_broadcast" [@@noalloc]
-  external signal : t -> unit = "caml_condition_signal" [@@noalloc]
+  
+  module MVar = Mvar.Make(Scheduler)
+
+  type t = bool MVar.t
+
+  let create () = MVar.make_empty ()
+
+  let wait cond mutex = 
+    Mutex.unlock mutex;
+    ignore (MVar.get cond);
+    Mutex.lock mutex
+
+  let signal cond = MVar.put true cond  
+
+  let broadcast cond = MVar.put_all true cond
+
 end
 
 type id = Raw.t
