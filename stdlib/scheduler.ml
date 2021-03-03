@@ -1,7 +1,9 @@
 module type AFLQueue = sig
-    val enqueue : (unit -> unit) -> unit
-    val dequeue : unit -> (unit -> unit)
-    val range   : ?min:int -> int -> int
+    val enqueue  : (unit -> unit) -> unit
+    val dequeue  : unit -> (unit -> unit)
+    val is_empty : unit -> bool
+    val range    : ?min:int -> int -> int
+
 end
 
 effect Context_switch : unit
@@ -22,7 +24,9 @@ let range ?(min=0) n = perform (Range (min,n))
 let run afl_module main =
     let module M = (val afl_module : AFLQueue) in
     let enqueue k v = M.enqueue (fun () -> continue k v) in
-    let dequeue () = M.dequeue () () in
+    let dequeue () = if M.is_empty () then () 
+        else M.dequeue () () in
+
     let rec spawn f = 
         match f () with
         | () -> dequeue ()

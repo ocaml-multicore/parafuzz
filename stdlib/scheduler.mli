@@ -1,6 +1,7 @@
 module type AFLQueue = sig
     val enqueue : (unit -> unit) -> unit
     val dequeue : unit -> (unit -> unit)
+    val is_empty : unit -> bool
     val range   : ?min:int -> int -> int
 end
 
