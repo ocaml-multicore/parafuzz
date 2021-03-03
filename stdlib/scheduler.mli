@@ -14,14 +14,14 @@ val context_switch : unit -> unit
 val fork : (unit->unit) -> unit
 (** [fork f] spawns a new runnable in the scheduler. *)
 
-val suspend : ('a cont -> unit) -> 'a
+val suspend : (('a cont * int) -> unit) -> 'a
 (** [suspend f] applies [f] to the current continuation, and suspends the
  *  execution of the current runnable, and switches to the next runnable in the
  *  scheduler's queue. *)
 
-val resume : ('a cont * 'a) -> unit
-(** [resume (k,v)] prepares the suspended continuation [k] with value [v] and
- *  enqueues it to the scheduler queue. *)
+val resume : ('a cont * 'a * int) -> unit
+(** [resume (k,v,id)] prepares the suspended continuation [k] with value [v], 
+ * domain identifier [id] and enqueues it to the scheduler queue. *)
 
 val range : ?min:int -> int -> int
 (** [range ?min n] generates integers between [min] (inclusive)
