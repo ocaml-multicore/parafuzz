@@ -1,6 +1,7 @@
 module type AFLQueue = sig
     val enqueue : (unit -> unit) -> unit
     val dequeue : unit -> (unit -> unit)
+    val range   : ?min:int -> int -> int
 end
 
 type 'a cont
@@ -21,6 +22,12 @@ val resume : ('a cont * 'a) -> unit
 (** [resume (k,v)] prepares the suspended continuation [k] with value [v] and
  *  enqueues it to the scheduler queue. *)
 
-val run : (module AFLQueue) ->  (unit -> unit) -> unit
+val range : ?min:int -> int -> int
+(** [range ?min n] generates integers between [min] (inclusive)
+ *  and [min + n] (exclusive). Default [min] value is 0.
+ *  [range ?min n] will raise [Invalid_argument] for [n <= 0].
+ *)
+
+val run : (module AFLQueue) -> (unit -> unit) -> unit
 (** [run m f] runs [f] with the AFL controlled scheduler [m]. *)
 
