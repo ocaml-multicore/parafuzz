@@ -1,76 +1,54 @@
 
-module type M = sig
-	type 'a t
-	val make_empty : unit -> 'a t
-	val make : 'a -> 'a t
-	val get : 'a t -> 'a
-	val put : 'a -> 'a t -> unit
-end
+type 'a state = 
+| Filled of 'a * (('a * (unit Scheduler.cont)) Queue.t)
+(* The first element in the pair represents the value stored.
+	The second element contains a queue of continuations that have `put`, that are waiting to be run *)
 
-module type S = sig 
+| Empty of 'a Scheduler.cont Queue.t
+(* This represents a queue of continuations that have `get`, waiting to be run. These will be run
+	once the MVar has some value. *)
 
-  module type AFLQueue = sig
-    val enqueue : (unit -> unit) -> unit
-    val dequeue : unit -> (unit -> unit)
-    val is_empty : unit -> bool
-    val range   : ?min:int -> int -> int
-  end
-  type 'a cont
-  val context_switch : unit -> unit
-  val fork : (unit->unit) -> unit
-  val suspend : (('a cont * int) -> unit) -> 'a
-  val resume : ('a cont * 'a * int) -> unit
-  val range : ?min:int -> int -> int
-  val run : (module AFLQueue) -> (unit -> unit) -> unit
-  val get_id : unit -> int
+type 'a t = 'a state ref
 
-end
+let make_empty () = ref (Empty(Queue.create ()))
 
-module Make(Scheduler : S) : MVar_type = struct
+let make v = ref (Filled(v, (Queue.create ())))
 
-	type 'a state = 
-	| Filled of 'a * (('a * (unit Scheduler.cont)) Queue.t)
-	(* The first element in the pair represents the value stored.
-		The second element contains a queue of continuations that have `put`, that are waiting to be run *)
+let get mvar = match (!mvar) with
+| Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont,id) wait_q)
+| Filled (value, wait_q) -> 
+	if Queue.is_empty wait_q then 
+		(mvar := Empty(Queue.create ()); value)
+	else 
+		(let (waiting_f, nvalue, id) = Queue.pop wait_q in
+		(mvar := Filled(nvalue, wait_q); 
+		Scheduler.resume (waiting_f, (), id);
+			value))    
 
-	| Empty of 'a Scheduler.cont Queue.t
-	(* This represents a queue of continuations that have `get`, waiting to be run. These will be run
-		once the MVar has some value. *)
+let put v mvar = match (!mvar) with
+| Empty (wait_q) -> 
+	if Queue.is_empty wait_q then 
+		mvar := Filled(v, Queue.create ()) 
+	else 
+		let (waiting_f,id) = Queue.pop wait_q in 
+		Scheduler.resume (waiting_f, v, id)
+| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
 
-	type 'a t = 'a state ref
+let put_all v mvar = match (!mvar) with
+| Empty (wait_q) -> 
+	if Queue.is_empty wait_q then 
+		mvar := Filled(v, Queue.create ()) 
+	else 
+		Queue.iter (fun (cont, id) -> Scheduler.resume (cont, v, id)) wait_q; 
+		Queue.clear wait_q; 
+		mvar := Empty(Queue.create ())
+| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
 
-	let make_empty () = ref (Empty(Queue.create ()))
+let try_get mvar = match !mvar with
+| Empty (wait_q) -> None
+| _ -> Some (get mvar)
 
-	let make v = ref (Filled(v, (Queue.create ())))
+let try_put v mvar = match !mvar with
+| Empty (wait_q) -> (put v mvar); true
+| _ -> false
 
-	let get mvar = match (!mvar) with
-	| Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont,id) wait_q)
-	| Filled (value, wait_q) -> 
-		if Queue.is_empty wait_q then 
-			(mvar := Empty((Queue.create ())); value)
-		else 
-			(let (waiting_f, nvalue, id) = Queue.pop wait_q in
-			(mvar := Filled(nvalue, wait_q); 
-      Scheduler.resume (waiting_f, (), id);
-				value))    
-
-	let put v mvar = match (!mvar) with
-	| Empty (wait_q) -> 
-		if Queue.is_empty wait_q then 
-			mvar := Filled(v, Queue.create ()) 
-		else 
-			let (waiting_f,id) = Queue.pop wait_q in 
-			Scheduler.resume (waiting_f, v, id)
-	| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
-
-	let put_all v mvar = match (!mvar) with
-	| Empty (wait_q) -> 
-		if Queue.is_empty wait_q then 
-			mvar := Filled(v, Queue.create ()) 
-		else 
-      Queue.iter (fun (cont, id) -> Scheduler.resume (cont, v, id)) wait_q; 
-      Queue.clear wait_q; 
-      mvar := Filled(v, Queue.create ())
-	| Filled (value, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
-
-end

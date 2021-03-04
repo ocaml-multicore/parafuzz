@@ -58,45 +58,37 @@ end
 
 module Mutex = struct
 
-  module MVar = Mvar.Make(Scheduler)
-
-  open Scheduler
-
-  type t = int MVar.t
+  type t = int Mvar.t
 
   exception LockNotHeld
 
-  let create = MVar.make_empty
+  let create = Mvar.make_empty
 
-  let lock mut = MVar.put (Scheduler.get_id ()) mut 
+  let lock mut = Mvar.put (Scheduler.get_id ()) mut 
 
-  let unlock mut = let id = (get_id ()) in
-    match (MVar.get mut) with
-  | effect (Suspend f) k -> raise LockNotHeld
-  | thread_id -> if id = thread_id then () else raise LockNotHeld
+  let unlock mut = let id = (Scheduler.get_id ()) in
+    match (Mvar.try_get mut) with
+  | None -> raise LockNotHeld
+  | Some (thread_id) -> if id = thread_id then () else Mvar.put thread_id mut; raise LockNotHeld
 
-  let try_lock mut = match (MVar.put (Scheduler.get_id ()) mut) with
-  | effect (Suspend f) cont -> false
-  | () -> true
+  let try_lock mut = Mvar.try_put (Scheduler.get_id ()) mut
 
 end
 
 module Condition = struct
-  
-  module MVar = Mvar.Make(Scheduler)
 
-  type t = bool MVar.t
+  type t = bool Mvar.t
 
-  let create () = MVar.make_empty ()
+  let create () = Mvar.make_empty ()
 
   let wait cond mutex = 
     Mutex.unlock mutex;
-    ignore (MVar.get cond);
+    ignore (Mvar.get cond);
     Mutex.lock mutex
 
-  let signal cond = MVar.put true cond  
+  let signal cond = Mvar.put true cond  
 
-  let broadcast cond = MVar.put_all true cond
+  let broadcast cond = Mvar.put_all true cond
 
 end
 
