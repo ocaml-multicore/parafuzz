@@ -134,26 +134,18 @@ end
 
 module Condition = struct
 
-  exception LockNotHeld
+  type t = (bool Mvar.t) * Mutex.t
 
-  type t = ((bool Mvar.t) * (Mutex.t ref))
-
-  let create mutex = (Mvar.make_empty (), (ref mutex))
+  let create mutex = (Mvar.make_empty (), mutex)
 
   let wait (cond, mutex) = 
-    Mutex.unlock !mutex;
+    Mutex.unlock mutex;
     ignore (Mvar.get cond);
-    Mutex.lock !mutex
+    Mutex.lock mutex
 
-  let signal (cond, mutex) = 
-    if Mutex.try_lock !mutex then
-      raise LockNotHeld
-    else Mvar.put true cond
+  let signal (cond, _) = Mvar.put true cond
 
-  let broadcast (cond, mutex) = 
-    if Mutex.try_lock !mutex then
-      raise LockNotHeld 
-    else Mvar.put_all true cond
+  let broadcast (cond, _) = Mvar.put_all true cond
 
 end
 
