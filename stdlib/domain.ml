@@ -73,6 +73,9 @@ module Mvar = struct
 
   let make v = ref (Filled(v, (Queue.create ())))
 
+
+  (* Reads the value of an MVar ['a t], if empty,
+  is put in a queue for waiting *)
   let get mvar = match (!mvar) with
   | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont,id) wait_q)
   | Filled (value, wait_q) -> 
@@ -84,6 +87,9 @@ module Mvar = struct
       Scheduler.resume (waiting_f, (), id);
         value))    
 
+
+  (* Writes ['as] to an MVar ['a t], if already full,
+  is put in a queue for waiting *)
   let put v mvar = match (!mvar) with
   | Empty (wait_q) -> 
     if Queue.is_empty wait_q then 
@@ -93,6 +99,9 @@ module Mvar = struct
       Scheduler.resume (waiting_f, v, id)
   | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
 
+
+  (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up 
+  if the MVar is already full, is put in a queue for waiting *)
   let put_all v mvar = match (!mvar) with
   | Empty (wait_q) -> 
     if Queue.is_empty wait_q then 
@@ -103,10 +112,16 @@ module Mvar = struct
       mvar := Empty(Queue.create ())
   | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
 
+
+  (* Tries to read and reuturn the value of an MVar ['a t], 
+  if empty, returns None *)
   let try_get mvar = match !mvar with
   | Empty (_) -> None
   | _ -> Some (get mvar)
 
+
+  (* Tries to write a value ['a] to an MVar ['a t].
+  Returns true if successful, if the MVar is not empty, returns false *)
   let try_put v mvar = match !mvar with
   | Empty (_) -> (put v mvar); true
   | _ -> false

@@ -153,36 +153,3 @@ module DLS : sig
         calling domain *)
 
   end
-
-module Mvar : sig
-(* MVar Module Signature *)
-    type 'a t
-    (* The type of the value stored in the MVar *)
-
-    val make_empty : unit -> 'a t
-    (* Creates an empty MVar *)
-
-    val make : 'a -> 'a t
-    (* Creates an MVar with the given value of type 'a *)
-
-    val get : 'a t -> 'a
-    (* Reads the value of an MVar ['a t], if empty,
-    is put in a queue for waiting *)
-
-    val put : 'a -> 'a t -> unit
-    (* Writes ['as] to an MVar ['a t], if already full,
-    is put in a queue for waiting *)
-
-    val try_get : 'a t -> 'a option
-    (* Tries to read and reuturn the value of an MVar ['a t], 
-    if empty, returns None *)
-
-    val try_put : 'a -> 'a t -> bool
-    (* Tries to write a value ['a] to an MVar ['a t].
-    Returns true if successful, if the MVar is not empty, returns false *)
-
-    val put_all : 'a -> 'a t -> unit
-    (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up 
-    if the MVar is already full, is put in a queue for waiting *)
-
-end
