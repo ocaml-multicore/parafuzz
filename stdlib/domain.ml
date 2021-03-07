@@ -114,9 +114,9 @@ module Mvar = struct
 
   (* Tries to read and reuturn the value of an MVar ['a t], 
   if empty, returns None *)
-  let try_get mvar = match !mvar with
+  (* let try_get mvar = match !mvar with
   | Empty (_) -> None
-  | _ -> Some (get mvar)
+  | _ -> Some (get mvar) *)
 
 
   (* Tries to write a value ['a] to an MVar ['a t].
@@ -145,7 +145,7 @@ module Mutex = struct
 
   let unlock mut = let id = (Scheduler.get_id ()) in
     if (Mvar.assert_val id mut) then 
-      (Mvar.get mut; ()) else raise LockNotHeld
+      ignore(Mvar.get mut) else raise LockNotHeld
 
   let try_lock mut = Mvar.try_put (Scheduler.get_id ()) mut
 
