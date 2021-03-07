@@ -13,11 +13,13 @@ type 'a cont = ('a,unit) continuation
 effect Suspend : (('a cont * int) -> unit) -> 'a
 effect Resume  : ('a cont * 'a * int) -> unit
 effect Range : (int * int) -> int
+effect Id : int
 
 let fork f = perform (Fork f)
 let suspend f = perform (Suspend f)
 let resume (k,v, id) = perform (Resume (k,v,id))
 let context_switch () = perform Context_switch
+let get_id () = perform Id
 
 let range ?(min=0) n = perform (Range (min,n))
 
@@ -41,6 +43,7 @@ let run afl_module main =
         | effect (Resume (k',v, id)) k ->
                 enqueue id k' v; enqueue !current_id k (); dequeue ()
         | effect (Range (min, n)) k -> continue k @@ M.range ~min n
+        | effect (Id) k -> continue k (!current_id)
     in
     spawn main
 

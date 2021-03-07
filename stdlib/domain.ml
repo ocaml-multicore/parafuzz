@@ -56,20 +56,111 @@ module Sync = struct
   external poll : unit -> unit = "%poll"
 end
 
+module Mvar = struct
+
+  type 'a state = 
+  | Filled of 'a * (((unit Scheduler.cont) * 'a * int) Queue.t)
+  (* The first element in the pair represents the value stored.
+    The second element contains a queue of continuations that have `put`, that are waiting to be run *)
+
+  | Empty of ('a Scheduler.cont * int) Queue.t
+  (* This represents a queue of continuations that have `get`, waiting to be run. These will be run
+    once the MVar has some value. *)
+
+  type 'a t = 'a state ref
+
+  let make_empty () = ref (Empty(Queue.create ()))
+
+(*   let make v = ref (Filled(v, (Queue.create ()))) *)
+
+  (* Reads the value of an MVar ['a t], if empty,
+  is put in a queue for waiting *)
+  let get mvar = match (!mvar) with
+  | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont,id) wait_q)
+  | Filled (value, wait_q) -> 
+    if Queue.is_empty wait_q then 
+      (mvar := Empty(Queue.create ()); value)
+    else 
+      (let (waiting_f, nvalue, id) = Queue.pop wait_q in
+      (mvar := Filled(nvalue, wait_q); 
+      Scheduler.resume (waiting_f, (), id);
+        value))    
+
+
+  (* Writes ['as] to an MVar ['a t], if already full,
+  is put in a queue for waiting *)
+  let put v mvar = match (!mvar) with
+  | Empty (wait_q) -> 
+    if Queue.is_empty wait_q then 
+      mvar := Filled(v, Queue.create ()) 
+    else 
+      let (waiting_f,id) = Queue.pop wait_q in 
+      Scheduler.resume (waiting_f, v, id)
+  | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
+
+
+  (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up 
+  if the MVar is already full, is put in a queue for waiting *)
+  let put_all v mvar = match (!mvar) with
+  | Empty (wait_q) -> 
+    if Queue.is_empty wait_q then 
+      mvar := Filled(v, Queue.create ()) 
+    else 
+      Queue.iter (fun (cont, id) -> Scheduler.resume (cont, v, id)) wait_q; 
+      Queue.clear wait_q; 
+      mvar := Empty(Queue.create ())
+  | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
+
+
+  (* Tries to read and reuturn the value of an MVar ['a t], 
+  if empty, returns None *)
+  let try_get mvar = match !mvar with
+  | Empty (_) -> None
+  | _ -> Some (get mvar)
+
+
+  (* Tries to write a value ['a] to an MVar ['a t].
+  Returns true if successful, if the MVar is not empty, returns false *)
+  let try_put v mvar = match !mvar with
+  | Empty (_) -> (put v mvar); true
+  | _ -> false
+
+end
+
 module Mutex = struct
-  type t
-  external create : unit -> t = "caml_mutex_new"
-  external lock : t -> unit = "caml_mutex_lock"
-  external unlock : t -> unit = "caml_mutex_unlock" [@@noalloc]
-  external try_lock : t -> bool = "caml_mutex_try_lock" [@@noalloc]
+
+  type t = int Mvar.t
+
+  exception LockNotHeld
+
+  let create = Mvar.make_empty
+
+  let lock mut = Mvar.put (Scheduler.get_id ()) mut 
+
+  let unlock mut = let id = (Scheduler.get_id ()) in
+    match (Mvar.try_get mut) with
+  | None -> raise LockNotHeld
+  | Some (thread_id) -> if id = thread_id then () else (Mvar.put thread_id mut; raise LockNotHeld)
+
+  let try_lock mut = Mvar.try_put (Scheduler.get_id ()) mut
+
 end
 
 module Condition = struct
-  type t
-  external create : Mutex.t -> t = "caml_condition_new"
-  external wait : t -> unit = "caml_condition_wait"
-  external broadcast : t -> unit = "caml_condition_broadcast" [@@noalloc]
-  external signal : t -> unit = "caml_condition_signal" [@@noalloc]
+
+  type t = (bool Mvar.t) * Mutex.t
+
+  let create mutex = (Mvar.make_empty (), mutex)
+
+  let wait (cond, mutex) = 
+    Mutex.unlock mutex;
+    ignore (Mvar.get cond);
+    Mutex.lock mutex
+
+  let signal (cond, _) = Mvar.put true cond
+
+  let broadcast (cond, _) = Mvar.put_all true cond
+
 end
 
 type id = Raw.t

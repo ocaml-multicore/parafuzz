@@ -47,13 +47,13 @@ STDLIB_MODULES=\
   $(P)int32 \
   $(P)int64 \
   $(P)nativeint \
-  $(P)domain \
   $(P)lexing \
   $(P)parsing \
   $(P)set \
   $(P)map \
   $(P)stack \
   $(P)queue \
+  $(P)domain \
   camlinternalLazy \
   $(P)lazy \
   $(P)stream \
