@@ -71,8 +71,7 @@ module Mvar = struct
 
   let make_empty () = ref (Empty(Queue.create ()))
 
-  let make v = ref (Filled(v, (Queue.create ())))
-
+(*   let make v = ref (Filled(v, (Queue.create ()))) *)
 
   (* Reads the value of an MVar ['a t], if empty,
   is put in a queue for waiting *)
