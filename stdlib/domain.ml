@@ -124,6 +124,12 @@ module Mvar = struct
   let try_put v mvar = match !mvar with
   | Empty (_) -> (put v mvar); true
   | _ -> false
+  
+  (* Checks the value in the MVar. Returns true if equal,
+    else false *)
+  let assert_val v mvar = match !mvar with
+  | Empty(_) -> false
+  | Filled(value, _) -> if value = v then true else false
 
 end
 
@@ -138,9 +144,8 @@ module Mutex = struct
   let lock mut = Mvar.put (Scheduler.get_id ()) mut 
 
   let unlock mut = let id = (Scheduler.get_id ()) in
-    match (Mvar.try_get mut) with
-  | None -> raise LockNotHeld
-  | Some (thread_id) -> if id = thread_id then () else (Mvar.put thread_id mut; raise LockNotHeld)
+    if (Mvar.assert_val id mut) then 
+      (Mvar.get mut; ()) else raise LockNotHeld
 
   let try_lock mut = Mvar.try_put (Scheduler.get_id ()) mut
 
