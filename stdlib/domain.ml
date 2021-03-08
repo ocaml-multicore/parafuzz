@@ -1,13 +1,3 @@
-module Raw = struct
-  (* Low-level primitives provided by the runtime *)
-  type t = private int
-  external spawn : (unit -> unit) -> t
-    = "caml_domain_spawn"
-  external self : unit -> t
-    = "caml_ml_domain_id"
-  external cpu_relax : unit -> unit
-    = "caml_ml_domain_cpu_relax"
-end
 
 type nanoseconds = int64
 external timer_ticks : unit -> (int64 [@unboxed]) =
@@ -33,7 +23,7 @@ module Sync = struct
   let wait_for _ = 
       failwith "wait_for not implemented"
 
-  let cpu_relax () = Raw.cpu_relax ()
+  let cpu_relax () = ()
   external poll : unit -> unit = "%poll"
 end
 
@@ -224,7 +214,7 @@ module Condition = struct
 
 end
 
-type id = Raw.t
+type id = int
 
 type 'a state =
 | Running
@@ -233,7 +223,7 @@ type 'a state =
 | Joined
 
 type 'a t =
-    { domain : Raw.t; state : 'a state Atomic.t; mutex : Mutex.t; cond : Condition.t }
+    { domain : id; state : 'a state Atomic.t; mutex : Mutex.t; cond : Condition.t }
 
 exception Retry
 let rec spin f =
@@ -266,7 +256,7 @@ let spawn f =
       | Joined | Finished _ ->
          failwith "internal error: I'm already finished?") in
   let mutex = Mutex.create () in
-  { domain = Raw.spawn body; state; mutex; cond = Condition.create mutex }
+  { domain = Scheduler.fork body; state; mutex; cond = Condition.create mutex }
 
 let join { state; mutex; cond } =
   let res = spin (fun () ->
@@ -298,7 +288,7 @@ let join { state; mutex; cond } =
 
 let get_id { domain; _ } = domain
 
-let self () = Raw.self ()
+let self () = Scheduler.get_current_domain_id ()
 
 module DLS = struct
 

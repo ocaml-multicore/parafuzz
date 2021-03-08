@@ -7,7 +7,7 @@ module type AFLQueue = sig
 end
 
 effect Context_switch : unit
-effect Fork           : (unit -> unit) -> unit
+effect Fork           : (unit -> unit) -> int
 
 type 'a cont = ('a,unit) continuation
 effect Suspend : (('a cont * int) -> unit) -> 'a
@@ -35,7 +35,7 @@ let run afl_module main =
         match f () with
         | () -> dequeue ()
         | effect Context_switch k -> enqueue !current_id k () ; dequeue () 
-        | effect (Fork f) k -> enqueue !current_id k (); 
+        | effect (Fork f) k -> enqueue !current_id k (!next_id); 
             current_id := !next_id;  
             incr next_id;
             spawn f

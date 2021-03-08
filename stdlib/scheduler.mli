@@ -11,8 +11,8 @@ type 'a cont
 val context_switch : unit -> unit
 (** [context_switch] switches to the next runnable as determined by scheduler. *)
 
-val fork : (unit->unit) -> unit
-(** [fork f] spawns a new runnable in the scheduler. *)
+val fork : (unit -> unit) -> int
+(** [fork f] spawns a new runnable in the scheduler and returns [id] of the forked runnable. *)
 
 val suspend : (('a cont * int) -> unit) -> 'a
 (** [suspend f] applies [f] to the current continuation, and suspends the
