@@ -19,7 +19,7 @@ let fork f = perform (Fork f)
 let suspend f = perform (Suspend f)
 let resume (k,v, id) = perform (Resume (k,v,id))
 let context_switch () = perform Context_switch
-let get_id () = perform Id
+let get_current_domain_id () = perform Id
 
 let range ?(min=0) n = perform (Range (min,n))
 

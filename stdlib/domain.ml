@@ -141,13 +141,13 @@ module Mutex = struct
 
   let create = Mvar.make_empty
 
-  let lock mut = Mvar.put (Scheduler.get_id ()) mut 
+  let lock mut = Mvar.put (Scheduler.get_current_domain_id ()) mut 
 
-  let unlock mut = let id = (Scheduler.get_id ()) in
+  let unlock mut = let id = (Scheduler.get_current_domain_id ()) in
     if (Mvar.assert_val id mut) then 
       ignore(Mvar.get mut) else raise LockNotHeld
 
-  let try_lock mut = Mvar.try_put (Scheduler.get_id ()) mut
+  let try_lock mut = Mvar.try_put (Scheduler.get_current_domain_id ()) mut
 
 end
 
