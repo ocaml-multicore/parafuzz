@@ -1,15 +1,6 @@
 module Raw = struct
   (* Low-level primitives provided by the runtime *)
   type t = private int
-(*  external critical_adjust : int -> unit
-    = "caml_ml_domain_critical_section"
-  external interrupt : t -> unit
-    = "caml_ml_domain_interrupt"
-  external wait : unit -> unit
-    = "caml_ml_domain_yield"
-  type timeout_or_notified = Timeout | Notified
-  external wait_until : int64 -> timeout_or_notified
-    = "caml_ml_domain_yield_until"*)
   external spawn : (unit -> unit) -> t
     = "caml_domain_spawn"
   external self : unit -> t
@@ -26,31 +17,21 @@ module Sync = struct
   exception Retry
   let critical_section _ =
     failwith "critical_section not implemented"
-    (*Raw.critical_adjust (+1);
-    match f () with
-    | x -> Raw.critical_adjust (-1); x
-    | exception Retry -> Raw.critical_adjust (-1); Raw.cpu_relax (); critical_section f
-    | exception ex -> Raw.critical_adjust (-1); raise ex *)
-
+   
   let notify _ = 
       failwith "notify not implemented"
-(*       Raw.interrupt d *)
 
   let wait () =  
       failwith "wait not implemented"
-(*       Raw.wait () *)
 
   type timeout_or_notified =
-(*     Raw.timeout_or_notified = *)
       Timeout | Notified
 
   let wait_until _ = 
       failwith "wait_until not implemented"
-(*       Raw.wait_until t *)
 
   let wait_for _ = 
       failwith "wait_for not implemented"
-(*       Raw.wait_until (Int64.add (timer_ticks ()) dt) *)
 
   let cpu_relax () = Raw.cpu_relax ()
   external poll : unit -> unit = "%poll"
@@ -144,74 +125,67 @@ end
 module Mvar = struct
 
   type 'a state = 
-  | Filled of 'a * (((unit Scheduler.cont) * 'a * int) Dllist.t)
-  (* The first element in the pair represents the value stored.
-    The second element contains a queue of continuations that have `put`, that are waiting to be run *)
+    | Filled of 'a * (((unit Scheduler.cont) * 'a * int) Dllist.t)
+      (* The first element in the pair represents the value stored.
+        The second element contains a queue of continuations that have `put`, that are waiting to be run *)
 
-  | Empty of ('a Scheduler.cont * int) Dllist.t
-  (* This represents a queue of continuations that have `get`, waiting to be run. These will be run
-    once the MVar has some value. *)
+    | Empty of ('a Scheduler.cont * int) Dllist.t
+        (* This represents a queue of continuations that have `get`, waiting to be run. These will be run
+        once the MVar has some value. *)
 
   type 'a t = 'a state ref
 
-  let make_empty () = ref (Empty(Dllist.create ()))
+  let make_empty () = ref (Empty (Dllist.create ()))
 
-(*   let make v = ref (Filled(v, (Dllist.create ()))) *)
-
-  (* Reads the value of an MVar ['a t], if empty,
-  is put in a queue for waiting *)
+  (* Reads the value of an MVar ['a t], if empty, is put in a queue for waiting *)
   let get mvar = match (!mvar) with
-  | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont,id) wait_q)
-  | Filled (value, wait_q) -> 
-    if Dllist.is_empty wait_q then 
-      (mvar := Empty(Dllist.create ()); value)
-    else 
-      (let (waiting_f, nvalue, id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in
-      (mvar := Filled(nvalue, wait_q); 
-      Scheduler.resume (waiting_f, (), id);
-        value))    
+    | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont,id) wait_q)
+    | Filled (value, wait_q) -> 
+        if Dllist.is_empty wait_q then (
+            mvar := Empty(Dllist.create ()); value)
+        else (
+            let (waiting_f, nvalue, id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in
+            mvar := Filled(nvalue, wait_q); 
+            Scheduler.resume (waiting_f, (), id);
+            value)
 
 
-  (* Writes ['as] to an MVar ['a t], if already full,
-  is put in a queue for waiting *)
+  (* Writes ['as] to an MVar ['a t], if already full, is put in a queue for waiting *)
   let put v mvar = match (!mvar) with
-  | Empty (wait_q) -> 
-    if Dllist.is_empty wait_q then 
-      mvar := Filled(v, Dllist.create ()) 
-    else 
-      let (waiting_f,id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in 
-      Scheduler.resume (waiting_f, v, id)
-  | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
+    | Empty (wait_q) -> 
+        if Dllist.is_empty wait_q then 
+            mvar := Filled(v, Dllist.create ()) 
+        else ( 
+            let (waiting_f,id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in 
+            Scheduler.resume (waiting_f, v, id))
+    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
 
 
-  (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up 
-  if the MVar is already full, is put in a queue for waiting *)
+  (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up if the MVar is already full, 
+   * is put in a queue for waiting *)
   let put_all v mvar = match (!mvar) with
-  | Empty (wait_q) -> 
-    if Dllist.is_empty wait_q then 
-      mvar := Filled(v, Dllist.create ()) 
-    else 
-      (* let  *)
-      Dllist.iter (fun (thread) -> match thread with 
+    | Empty (wait_q) -> 
+        if Dllist.is_empty wait_q then 
+            mvar := Filled(v, Dllist.create ()) 
+        else (
+            Dllist.iter (fun (thread) -> match thread with 
                         | Some(cont, id) -> Scheduler.resume (cont, v, id)
                         | None -> ()) wait_q; 
-      Dllist.clear wait_q; 
-      mvar := Empty(Dllist.create ())
-  | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
-
-
-  (* Tries to read and reuturn the value of an MVar ['a t], 
-  if empty, returns None *)
-  let try_get mvar = match !mvar with
-  | Empty (_) -> None
-  | _ -> Some (get mvar)
-
+            Dllist.clear wait_q; 
+            mvar := Empty(Dllist.create ()))
+    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
 
   (* Tries to write a value ['a] to an MVar ['a t].
-  Returns true if successful, if the MVar is not empty, returns false *)
+   * Returns true if successful, if the MVar is not empty, returns false *)
   let try_put v mvar = match !mvar with
-  | Empty (_) -> (put v mvar); true
-  | _ -> false
+    | Empty (_) -> (put v mvar); true
+    | _ -> false
+  
+  (* Checks the value in the MVar. Returns true if equal,
+   * else false *)
+  let assert_val v mvar = match !mvar with
+    | Empty(_) -> false
+    | Filled(value, _) -> value = v
 
 end
 
@@ -223,14 +197,13 @@ module Mutex = struct
 
   let create = Mvar.make_empty
 
-  let lock mut = Mvar.put (Scheduler.get_id ()) mut 
+  let lock mut = Mvar.put (Scheduler.get_current_domain_id ()) mut 
 
-  let unlock mut = let id = (Scheduler.get_id ()) in
-    match (Mvar.try_get mut) with
-  | None -> raise LockNotHeld
-  | Some (thread_id) -> if id = thread_id then () else (Mvar.put thread_id mut; raise LockNotHeld)
+  let unlock mut = let id = (Scheduler.get_current_domain_id ()) in
+    if (Mvar.assert_val id mut) then ignore(Mvar.get mut) 
+    else raise LockNotHeld
 
-  let try_lock mut = Mvar.try_put (Scheduler.get_id ()) mut
+  let try_lock mut = Mvar.try_put (Scheduler.get_current_domain_id ()) mut
 
 end
 
@@ -264,9 +237,8 @@ type 'a t =
 
 exception Retry
 let rec spin f =
-  try f () with Retry ->
-(*      Raw.cpu_relax (); *)
-     spin f
+  try f () with 
+  Retry -> spin f
 
 let cas r vold vnew =
   if not (Atomic.compare_and_set r vold vnew) then raise Retry
