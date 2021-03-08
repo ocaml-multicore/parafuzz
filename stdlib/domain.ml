@@ -62,7 +62,6 @@ module Dllist = struct
       node.active <- false;
       node.prev.next <- node.next;
       node.next.prev <- node.prev;
-      Printf.printf "%d\n" seq.len;
       seq.len <- seq.len - 1
     end
 
@@ -84,8 +83,9 @@ module Dllist = struct
           Option.get node.data
 
   let create () =
-      let rec dummy_head = {prev = dummy_head; next = dummy_head; data = None; active = true} in
-      let rec dummy_rear = {prev = dummy_rear; next = dummy_rear; data = None; active = true} in
+      (* Dummy nodes are not active *)
+      let rec dummy_head = {prev = dummy_head; next = dummy_head; data = None; active = false} in
+      let rec dummy_rear = {prev = dummy_rear; next = dummy_rear; data = None; active = false} in
       dummy_head.next <- dummy_rear;
       dummy_rear.prev <- dummy_head;
       let seq = { head = dummy_head; rear = dummy_rear; len = 0; map = Hashtbl.create 10 } in
@@ -107,18 +107,18 @@ module Dllist = struct
     ()
 
   let iter f seq = 
-    let rec func f curnode = 
-      if curnode != curnode.next then 
+    let rec func f curnode = if curnode != curnode.next then 
         (if curnode.active then f curnode.data else (); func f curnode.next)
-    in func f seq.head
+    in 
+    func f seq.head
 
   let iter_node f seq = 
-    let rec func f curnode = 
-      if curnode != curnode.next then 
+    let rec func f curnode = if curnode != curnode.next then 
         (if curnode.active then f curnode else (); func f curnode.next)
-    in func f seq.head
+    in 
+    func f seq.head
     
-  let clear seq = iter_node (remove seq) seq
+  let clear seq = iter_node (remove seq) seq; Hashtbl.clear seq.map
 
 end
 
