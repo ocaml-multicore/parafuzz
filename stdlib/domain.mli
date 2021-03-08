@@ -112,6 +112,10 @@ module Sync : sig
 end
 
 module Mutex : sig
+  exception MutexNotHeld
+  exception MutexAlreadyHeld
+  exception MutexNotHeldByDomain
+
   type t
   val create : unit -> t
   val lock : t -> unit

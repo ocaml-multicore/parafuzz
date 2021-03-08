@@ -168,14 +168,23 @@ module Mvar = struct
   (* Tries to write a value ['a] to an MVar ['a t].
    * Returns true if successful, if the MVar is not empty, returns false *)
   let try_put v mvar = match !mvar with
-    | Empty (_) -> (put v mvar); true
-    | _ -> false
+    | Empty _ -> (put v mvar); true
+    | Filled _ -> false
   
-  (* Checks the value in the MVar. Returns true if equal,
-   * else false *)
-  let assert_val v mvar = match !mvar with
-    | Empty(_) -> false
-    | Filled(value, _) -> value = v
+  (* Checks the value in the MVar. Returns true if equal, else false *)
+  let assert_val mvar v = match !mvar with
+    | Empty _ -> false
+    | Filled (value, _) -> value = v
+
+  (* Checks whether [mvar] is empty computations waiting for value.  *)
+  let is_waited_upon mvar = match !mvar with
+    | Empty q -> not @@ Dllist.is_empty q
+    | Filled _ -> false
+
+  (* Checks whether [mvar] has a value.  *)
+  let is_filled mvar = match !mvar with
+    | Empty _ -> false
+    | Filled _ -> true
 
 end
 
@@ -183,17 +192,34 @@ module Mutex = struct
 
   type t = int Mvar.t
 
-  exception LockNotHeld
+  exception MutexNotHeld
+  exception MutexAlreadyHeld
+  exception MutexNotHeldByDomain
 
   let create = Mvar.make_empty
 
-  let lock mut = Mvar.put (Scheduler.get_current_domain_id ()) mut 
+  let lock mut =
+      Scheduler.context_switch ();
+      let _ = if Sys.opaque_identity true then () else () in
+      let id = Scheduler.get_current_domain_id () in
+      (* is mutex already owned by current domain *)
+      if Mvar.assert_val mut id then raise MutexAlreadyHeld; 
+      Mvar.put id mut 
 
-  let unlock mut = let id = (Scheduler.get_current_domain_id ()) in
-    if (Mvar.assert_val id mut) then ignore(Mvar.get mut) 
-    else raise LockNotHeld
+  let unlock mut = 
+      Scheduler.context_switch ();
+      let _ = if Sys.opaque_identity true then () else () in
+      let id = (Scheduler.get_current_domain_id ()) in
+      (* is mutex currently unlocked *)
+      if not (Mvar.is_filled mut) then raise MutexNotHeld; 
+      (* is mutex currently not locked by current domain *)
+      if not (Mvar.assert_val mut id) then raise MutexNotHeldByDomain;
+      ignore @@ Mvar.get mut
 
-  let try_lock mut = Mvar.try_put (Scheduler.get_current_domain_id ()) mut
+  let try_lock mut = 
+      Scheduler.context_switch ();
+      let _ = if Sys.opaque_identity true then () else () in
+      Mvar.try_put (Scheduler.get_current_domain_id ()) mut
 
 end
 
@@ -208,9 +234,17 @@ module Condition = struct
     ignore (Mvar.get cond);
     Mutex.lock mutex
 
-  let signal (cond, _) = Mvar.put true cond
+  let signal (cond, _) = 
+      Scheduler.context_switch ();
+      let _ = if Sys.opaque_identity true then () else () in
+      if Mvar.is_waited_upon cond then Mvar.put true cond
+      else ()
 
-  let broadcast (cond, _) = Mvar.put_all true cond
+  let broadcast (cond, _) = 
+      Scheduler.context_switch ();
+      let _ = if Sys.opaque_identity true then () else () in
+      if Mvar.is_waited_upon cond then Mvar.put_all true cond
+      else ()
 
 end
 
