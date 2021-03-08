@@ -37,29 +37,114 @@ module Sync = struct
   external poll : unit -> unit = "%poll"
 end
 
+module Dllist = struct
+  (* This module is part of Lwt, released under the MIT license. 
+    Visit https://github.com/ocsigen/lwt/blob/master/LICENSE.md for more details *)
+
+  exception Invalid_index
+
+  type 'a node = {
+    mutable prev : 'a node;
+    mutable next : 'a node;
+    mutable data : 'a option;
+    mutable active : bool;
+  }
+
+  type 'a t = {
+    mutable head : 'a node;
+    mutable rear : 'a node;
+    mutable len : int;
+    map  : (int, 'a node) Hashtbl.t;
+  }
+
+  let remove seq node =
+    if node.active then begin
+      node.active <- false;
+      node.prev.next <- node.next;
+      node.next.prev <- node.prev;
+      seq.len <- seq.len - 1
+    end
+
+  let remove_at_index seq n = 
+      match Hashtbl.find_opt seq.map n with
+      | None -> raise Invalid_index
+      | Some node ->
+          if seq.len > 1 then (
+              (* Find last node *)
+              let node_at_last = Hashtbl.find seq.map (seq.len - 1) in
+              (* Replace binding at [n] with last node *)
+              Hashtbl.replace seq.map n node_at_last;
+              (* Remove binding at last index *)
+              Hashtbl.remove seq.map (seq.len - 1)
+          ) else (
+              Hashtbl.remove seq.map n
+          );
+          remove seq node;
+          Option.get node.data
+
+  let create () =
+      (* Dummy nodes are not active *)
+      let rec dummy_head = {prev = dummy_head; next = dummy_head; data = None; active = false} in
+      let rec dummy_rear = {prev = dummy_rear; next = dummy_rear; data = None; active = false} in
+      dummy_head.next <- dummy_rear;
+      dummy_rear.prev <- dummy_head;
+      let seq = { head = dummy_head; rear = dummy_rear; len = 0; map = Hashtbl.create 10 } in
+      seq
+
+
+  let length seq = seq.len
+
+  let is_empty seq = (length seq) = 0
+
+  let add_binding seq node n = Hashtbl.add seq.map n node
+
+  let add data seq =
+    let node = { prev = seq.rear.prev; next = seq.rear; data = Some data; active = true } in
+    seq.rear.prev.next <- node;
+    seq.rear.prev <- node;
+    add_binding seq node seq.len;
+    seq.len <- seq.len + 1;
+    ()
+
+  let iter f seq = 
+    let rec func f curnode = if curnode != curnode.next then 
+        (if curnode.active then f curnode.data else (); func f curnode.next)
+    in 
+    func f seq.head
+
+  let iter_node f seq = 
+    let rec func f curnode = if curnode != curnode.next then 
+        (if curnode.active then f curnode else (); func f curnode.next)
+    in 
+    func f seq.head
+    
+  let clear seq = iter_node (remove seq) seq; Hashtbl.clear seq.map
+
+end
+
 module Mvar = struct
 
   type 'a state = 
-    | Filled of 'a * (((unit Scheduler.cont) * 'a * int) Queue.t)
+    | Filled of 'a * (((unit Scheduler.cont) * 'a * int) Dllist.t)
       (* The first element in the pair represents the value stored.
         The second element contains a queue of continuations that have `put`, that are waiting to be run *)
 
-    | Empty of ('a Scheduler.cont * int) Queue.t
+    | Empty of ('a Scheduler.cont * int) Dllist.t
         (* This represents a queue of continuations that have `get`, waiting to be run. These will be run
         once the MVar has some value. *)
 
   type 'a t = 'a state ref
 
-  let make_empty () = ref (Empty (Queue.create ()))
+  let make_empty () = ref (Empty (Dllist.create ()))
 
   (* Reads the value of an MVar ['a t], if empty, is put in a queue for waiting *)
   let get mvar = match (!mvar) with
-    | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont,id) wait_q)
+    | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont,id) wait_q)
     | Filled (value, wait_q) -> 
-        if Queue.is_empty wait_q then (
-            mvar := Empty(Queue.create ()); value)
+        if Dllist.is_empty wait_q then (
+            mvar := Empty(Dllist.create ()); value)
         else (
-            let (waiting_f, nvalue, id) = Queue.pop wait_q in
+            let (waiting_f, nvalue, id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in
             mvar := Filled(nvalue, wait_q); 
             Scheduler.resume (waiting_f, (), id);
             value)
@@ -68,25 +153,27 @@ module Mvar = struct
   (* Writes ['as] to an MVar ['a t], if already full, is put in a queue for waiting *)
   let put v mvar = match (!mvar) with
     | Empty (wait_q) -> 
-        if Queue.is_empty wait_q then 
-            mvar := Filled(v, Queue.create ()) 
+        if Dllist.is_empty wait_q then 
+            mvar := Filled(v, Dllist.create ()) 
         else ( 
-            let (waiting_f,id) = Queue.pop wait_q in 
+            let (waiting_f,id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in 
             Scheduler.resume (waiting_f, v, id))
-    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
+    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
 
 
   (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up if the MVar is already full, 
    * is put in a queue for waiting *)
   let put_all v mvar = match (!mvar) with
     | Empty (wait_q) -> 
-        if Queue.is_empty wait_q then 
-            mvar := Filled(v, Queue.create ()) 
+        if Dllist.is_empty wait_q then 
+            mvar := Filled(v, Dllist.create ()) 
         else (
-            Queue.iter (fun (cont, id) -> Scheduler.resume (cont, v, id)) wait_q; 
-            Queue.clear wait_q; 
-            mvar := Empty(Queue.create ()))
-    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Queue.push (cont, v, id) wait_q)
+            Dllist.iter (fun (thread) -> match thread with 
+                        | Some(cont, id) -> Scheduler.resume (cont, v, id)
+                        | None -> ()) wait_q; 
+            Dllist.clear wait_q; 
+            mvar := Empty(Dllist.create ()))
+    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
 
   (* Tries to write a value ['a] to an MVar ['a t].
    * Returns true if successful, if the MVar is not empty, returns false *)
