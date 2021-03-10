@@ -198,11 +198,19 @@ stdlib__digest.cmx : \
     stdlib__digest.cmi
 stdlib__digest.cmi :
 stdlib__domain.cmo : \
+    stdlib__sys.cmi \
+    stdlib__scheduler.cmi \
+    stdlib__option.cmi \
     stdlib__obj.cmi \
+    stdlib__hashtbl.cmi \
     stdlib__atomic.cmi \
     stdlib__domain.cmi
 stdlib__domain.cmx : \
+    stdlib__sys.cmx \
+    stdlib__scheduler.cmx \
+    stdlib__option.cmx \
     stdlib__obj.cmx \
+    stdlib__hashtbl.cmx \
     stdlib__atomic.cmx \
     stdlib__domain.cmi
 stdlib__domain.cmi :
