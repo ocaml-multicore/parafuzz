@@ -1,0 +1,19 @@
+opam-version: "2.0"
+maintainer: [ "Sumit Padhiyar <padhiyarsumit@gmail.com> " ]
+authors: ["Sumit Padhiyar <padhiyarsumit@gmail.com>" ]
+homepage: "https://github.com/SumitPadhiyar/parafuzz-lib"
+dev-repo: "git+https://github.com/SumitPadhiyar/parafuzz-lib.git"
+bug-reports: "https://github.com/SumitPadhiyar/parafuzz-lib"
+synopsis: "Parafuzz lib"
+license: "MIT"
+depends: [
+  "dune" {>= "1.1"}
+  "ocaml" {>= "4.08"}
+  "ocplib-endian"
+  "cmdliner"
+  "afl-persistent" {>= "1.1"}
+]
+build: [
+ ["dune" "build" "-p" name "-j" jobs]
+]
+

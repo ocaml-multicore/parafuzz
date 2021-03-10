@@ -1,0 +1,11 @@
+(test
+(name test_parafuzz)
+(libraries parafuzz-lib)
+(modules test_parafuzz)
+(modes native))
+
+(test
+(name test_range)
+(libraries parafuzz-lib)
+(modules test_range)
+(modes native))

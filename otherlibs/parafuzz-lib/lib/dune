@@ -1,0 +1,4 @@
+(library
+(name parafuzz_lib)
+(public_name parafuzz-lib)
+(libraries cmdliner ocplib-endian afl-persistent str))
