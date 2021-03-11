@@ -6,8 +6,7 @@ module M : Scheduler.AFLQueue = struct
 
     let is_empty () = Dllist.is_empty queue
 
-    let enqueue _ = ignore @@ Dllist.add (fun () -> 
-        Printf.printf "Hello world from enqueue ()\n") queue
+    let enqueue f = ignore @@ Dllist.add f queue
 
     let dequeue () = 
         let n = range @@ Dllist.length queue in
