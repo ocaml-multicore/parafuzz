@@ -1,3 +1,4 @@
+module Crowbar = Crowbar
 module M : Scheduler.AFLQueue = struct
 
     let queue = Dllist.create ()
