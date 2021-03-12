@@ -1,7 +1,13 @@
-let ()  =
-	Crowbar.(add_test ~name:"Basic Atomic check" [Crowbar.range 100] (fun i ->
-		let v = Atomic.make i in
-		Parafuzz_lib.run (fun () -> (Atomic.incr v;
-			Crowbar.check ((Atomic.get v) = i+2))
-		)
+module Crowbar = Parafuzz_lib.Crowbar
+
+let test () = 
+    let v = Atomic.make 1 in
+    let dom = Domain.spawn(fun () -> Atomic.set v 2) in
+    Atomic.set v 3;
+    Domain.join dom;
+    Crowbar.check (Atomic.get v = 3)
+
+let ()  = 
+	Crowbar.(add_test ~name:"Basic Atomic check" [Crowbar.const 1] (fun _ ->
+		Parafuzz_lib.run test
 	))
