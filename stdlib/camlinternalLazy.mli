@@ -26,3 +26,5 @@ val force_lazy_block : 'a lazy_t -> 'a
 val force_gen : only_val:bool -> 'a lazy_t -> 'a
 
 val try_force_gen : only_val:bool -> 'a lazy_t -> 'a option
+
+val force : 'a lazy_t -> 'a
