@@ -534,7 +534,8 @@ let run_all_tests file verbosity infinity tests =
   | Some file, _ ->
     (* AFL mode *)
     let verbose = List.length verbosity > 0 in
-    let () = AflPersistent.run (fun () ->
+    let () = 
+(*         AflPersistent.run (fun () -> *)
         let fd = Unix.openfile file [Unix.O_RDONLY] 0o000 in
         let state = { chan = Fd fd; buf = Bytes.make 256 '0';
                       offset = 0; len = 0 } in
@@ -550,7 +551,8 @@ let run_all_tests file verbosity infinity tests =
         | `Bad -> exit 0
         | `Fail ->
           Printexc.record_backtrace false;
-          raise TestFailure)
+          raise TestFailure
+(*         ) *)
     in
     0 (* failures come via the exception mechanism above *)
 
