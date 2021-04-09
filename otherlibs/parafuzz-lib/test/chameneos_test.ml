@@ -180,4 +180,4 @@ let main () =
   printf "\n";
 ;;
 
-let () = main ()
+let () = Parafuzz_lib.run main
