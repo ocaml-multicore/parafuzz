@@ -26,14 +26,17 @@ let range ?(min=0) n = perform (Range (min,n))
 let run afl_module main =
     let current_id = ref 0 in
     let next_id = ref 1 in
+    let domains_finished = ref 0 in
+
+    let check_for_deadlock () = if (!next_id - !domains_finished) = 0 then () else failwith "Deadlock!"  in
     let module M = (val afl_module : AFLQueue) in
     let enqueue id k v = M.enqueue (fun () -> current_id := id; continue k v) in
-    let dequeue () = if M.is_empty () then () 
+    let dequeue () = if M.is_empty () then check_for_deadlock () 
         else M.dequeue () () in
 
     let rec spawn f = 
         match f () with
-        | () -> dequeue ()
+        | () -> incr domains_finished; dequeue ()
         | effect Context_switch k -> enqueue !current_id k () ; dequeue () 
         | effect (Fork f) k -> enqueue !current_id k (!next_id); 
             current_id := !next_id;  
