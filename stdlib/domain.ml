@@ -225,22 +225,22 @@ end
 
 module Condition = struct
 
-  type t = (bool Mvar.t) * Mutex.t
+  type t = bool Mvar.t
 
-  let create mutex = (Mvar.make_empty (), mutex)
+  let create = Mvar.make_empty
 
-  let wait (cond, mutex) = 
+  let wait cond mutex = 
     Mutex.unlock mutex;
     ignore (Mvar.get cond);
     Mutex.lock mutex
 
-  let signal (cond, _) = 
+  let signal cond = 
       Scheduler.context_switch ();
       let _ = if Sys.opaque_identity true then () else () in
       if Mvar.is_waited_upon cond then Mvar.put true cond
       else ()
 
-  let broadcast (cond, _) = 
+  let broadcast cond = 
       Scheduler.context_switch ();
       let _ = if Sys.opaque_identity true then () else () in
       if Mvar.is_waited_upon cond then Mvar.put_all true cond
@@ -290,7 +290,7 @@ let spawn f =
       | Joined | Finished _ ->
          failwith "internal error: I'm already finished?") in
   let mutex = Mutex.create () in
-  { domain = Scheduler.fork body; state; mutex; cond = Condition.create mutex }
+  { domain = Scheduler.fork body; state; mutex; cond = Condition.create () }
 
 let join { state; mutex; cond } =
   let res = spin (fun () ->
@@ -300,7 +300,7 @@ let join { state; mutex; cond } =
        cas state Running (Joining (res, mutex, cond));
        Mutex.lock mutex;
        let rec check_res () = match !res with
-           | None -> Condition.wait cond; check_res ()
+           | None -> Condition.wait cond mutex; check_res ()
            | Some r -> r
        in
        let r = check_res () in
