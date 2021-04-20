@@ -125,8 +125,8 @@ end
 
 module Condition : sig
   type t
-  val create : Mutex.t -> t
-  val wait : t -> unit
+  val create : unit -> t
+  val wait : t -> Mutex.t -> unit
   val broadcast : t -> unit
   val signal : t -> unit
 end
