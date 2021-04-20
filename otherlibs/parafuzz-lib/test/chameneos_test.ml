@@ -44,8 +44,8 @@ module Meeting_place = struct
     state = `Empty;
     meetings_left = n;
     mutex = Mutex.create ();
-    wait_for_second = Condition.create (Mutex.create ());
-    wait_for_empty = Condition.create (Mutex.create ());
+    wait_for_second = Condition.create ();
+    wait_for_empty = Condition.create ();
   }
 
   let meet t c =
@@ -58,7 +58,7 @@ module Meeting_place = struct
   match t.state with
   | `Empty ->
       t.state <- `First c;
-      Condition.wait t.wait_for_second;
+      Condition.wait t.wait_for_second t.mutex;
       begin
         match t.state with
         | `Empty
@@ -76,7 +76,7 @@ module Meeting_place = struct
       Condition.signal t.wait_for_second;
       Some c1
   | `Second _ ->
-      Condition.wait t.wait_for_empty;
+      Condition.wait t.wait_for_empty t.mutex;
       loop ()
     in
     Mutex.lock t.mutex;
