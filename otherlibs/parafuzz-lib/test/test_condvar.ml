@@ -22,6 +22,6 @@ let test () =
     Crowbar.check (!v = 2)
 
 let ()  = 
-	Crowbar.(add_test ~name:"Mutex check" [Crowbar.const 1] (fun _ ->
+	Crowbar.(add_test ~name:"Conditional Variable check" [Crowbar.const 1] (fun _ ->
 		Parafuzz_lib.run test
 	))

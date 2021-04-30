@@ -21,6 +21,6 @@ let test () =
     Crowbar.check (!v = 3)
 
 let ()  = 
-	Crowbar.(add_test ~name:"Mutex starvation check" [Crowbar.const 1] (fun _ ->
+	Crowbar.(add_test ~name:"Mutex deadlock check" [Crowbar.const 1] (fun _ ->
 		Parafuzz_lib.run test
 	))
