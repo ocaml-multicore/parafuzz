@@ -1,5 +1,6 @@
 module List = ListLabels
 module String = StringLabels
+module Crowbar = Parafuzz_lib.Crowbar
 
 open Printf
 open Domain
@@ -115,6 +116,7 @@ module Chameneos = struct
       | None -> ()
       | Some other ->
     t.meetings <- t.meetings + 1;
+    Crowbar.check (t.meetings = 20);
     if t.id = other.id then t.meetings_with_self <- t.meetings_with_self + 1;
     t.color <- Color.complement t.color other.color;
     loop ()
@@ -122,62 +124,25 @@ module Chameneos = struct
     Domain.spawn loop
 end
 
-let print_complements () =
-  List.iter Color.all ~f:(fun c1 ->
-    List.iter Color.all ~f:(fun c2 ->
-      printf "%s + %s -> %s\n"
-  (Color.to_string c1)
-  (Color.to_string c2)
-  (Color.to_string (Color.complement c1 c2))));
-  printf "\n";
-;;
-
-let spell_int i =
-  let spell_char = function
-    | '0' -> "zero"
-    | '1' -> "one"
-    | '2' -> "two"
-    | '3' -> "three"
-    | '4' -> "four"
-    | '5' -> "five"
-    | '6' -> "six"
-    | '7' -> "seven"
-    | '8' -> "eight"
-    | '9' -> "nine"
-    | x -> failwith "unexpected char"
-  in
-  let s = string_of_int i in
-  String.iter s ~f:(fun c -> printf " %s" (spell_char c));
-;;
-
 let work colors n =
   let module C = Chameneos in
-  List.iter colors ~f:(fun c -> printf " %s" (Color.to_string c)); printf "\n";
   let place = Meeting_place.create n in
   let cs = List.map colors ~f:Chameneos.create in
   let threads = List.map cs ~f:(fun c -> Chameneos.run c place) in
-  List.iter threads ~f:Domain.join;
   let sum_meets = ref 0 in
-  List.iter cs ~f:(fun c ->
-    printf "%d" c.C.meetings; spell_int c.C.meetings_with_self; printf "\n";
-    sum_meets := !sum_meets + c.C.meetings);
-  spell_int !sum_meets; printf "\n";
+  List.iter cs ~f:(fun c -> sum_meets := !sum_meets + c.C.meetings); 
+  Crowbar.check (!sum_meets < 20 || !sum_meets > 0);
+  List.iter threads ~f:Domain.join;
+  
 ;;
 
 
-let main () =
-  let n =
-    try
-      int_of_string (Sys.argv.(1))
-    with
-    | _ -> 600
-  in
-  print_complements ();
+let test n =
   let module C = Color in
-  work [ C.Blue; C.Red; C.Yellow ] n;
-  printf "\n";
-  work [ C.Blue; C.Red; C.Yellow; C.Red; C.Yellow; C.Blue; C.Red; C.Yellow; C.Red; C.Blue ] n;
-  printf "\n";
+  work [ C.Blue; C.Red; C.Yellow; C.Blue; C.Red; C.Yellow; C.Red; C.Yellow; C.Blue; C.Yellow; C.Blue; C.Red; C.Yellow; C.Red; C.Yellow; C.Blue; ] n;
 ;;
 
-let () = Parafuzz_lib.run main
+let ()  = 
+	Crowbar.(add_test ~name:"Chameneos Test" [int] (fun n ->
+		Parafuzz_lib.run (fun () -> test n)
+	))
