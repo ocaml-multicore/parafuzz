@@ -21,7 +21,11 @@ val suspend : (('a cont * int) -> unit) -> 'a
 
 val resume : ('a cont * 'a * int) -> unit
 (** [resume (k,v,id)] prepares the suspended continuation [k] with value [v], 
- * domain identifier [id] and enqueues it to the scheduler queue. *)
+ * domain identifier [id] and enqueues it as well current thread to the scheduler queue. *)
+
+val resume_without_context_switch : ('a cont * 'a * int) -> unit
+(** [resume_without_context_switch (k,v,id)] prepares the suspended continuation [k] with value [v], 
+ * domain identifier [id] and enqueues it to the scheduler queue and continues with the current thread. *)
 
 val range : ?min:int -> int -> int
 (** [range ?min n] generates integers between [min] (inclusive)

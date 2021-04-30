@@ -129,7 +129,8 @@ module Mvar = struct
 
   (* Reads the value of an MVar ['a t], if empty, is put in a queue for waiting *)
   let get mvar = match (!mvar) with
-    | Empty (wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont,id) wait_q)
+    | Empty (wait_q) -> 
+            Scheduler.suspend (fun (cont,id) -> Dllist.add (cont,id) wait_q)
     | Filled (value, wait_q) -> 
         if Dllist.is_empty wait_q then (
             mvar := Empty(Dllist.create ()); value)
@@ -139,16 +140,29 @@ module Mvar = struct
             Scheduler.resume (waiting_f, (), id);
             value)
 
+  (* Reads the value of an MVar ['a t], if empty, is put in a queue for waiting *)
+  let get_atomically mvar = match (!mvar) with
+    | Empty (wait_q) -> 
+            Scheduler.suspend (fun (cont,id) -> Dllist.add (cont,id) wait_q)
+    | Filled (value, wait_q) -> 
+        if Dllist.is_empty wait_q then (
+            mvar := Empty(Dllist.create ()); value)
+        else (
+            let (waiting_f, nvalue, id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in
+            mvar := Filled(nvalue, wait_q); 
+            Scheduler.resume_without_context_switch (waiting_f, (), id);
+            value)
 
   (* Writes ['as] to an MVar ['a t], if already full, is put in a queue for waiting *)
   let put v mvar = match (!mvar) with
     | Empty (wait_q) -> 
-        if Dllist.is_empty wait_q then 
-            mvar := Filled(v, Dllist.create ()) 
+        if Dllist.is_empty wait_q then ( 
+            mvar := Filled(v, Dllist.create ()) )
         else ( 
             let (waiting_f,id) = Dllist.remove_at_index wait_q (Scheduler.range (Dllist.length wait_q)) in 
             Scheduler.resume (waiting_f, v, id))
-    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
+    | Filled (_, wait_q) -> 
+            Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
 
 
   (* Writes the value ['a] to an MVar ['a t], and wakes all the waiting threads up if the MVar is already full, 
@@ -163,7 +177,8 @@ module Mvar = struct
                         | None -> ()) wait_q; 
             Dllist.clear wait_q; 
             mvar := Empty(Dllist.create ()))
-    | Filled (_, wait_q) -> Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
+    | Filled (_, wait_q) -> 
+            Scheduler.suspend (fun (cont,id) -> Dllist.add (cont, v, id) wait_q)
 
   (* Tries to write a value ['a] to an MVar ['a t].
    * Returns true if successful, if the MVar is not empty, returns false *)
@@ -215,6 +230,16 @@ module Mutex = struct
       (* is mutex currently not locked by current domain *)
       if not (Mvar.assert_val mut id) then raise MutexNotHeldByDomain;
       ignore @@ Mvar.get mut
+  
+  let unlock_atomically mut = 
+      Scheduler.context_switch ();
+      let _ = if Sys.opaque_identity true then () else () in
+      let id = (Scheduler.get_current_domain_id ()) in
+      (* is mutex currently unlocked *)
+      if not (Mvar.is_filled mut) then raise MutexNotHeld; 
+      (* is mutex currently not locked by current domain *)
+      if not (Mvar.assert_val mut id) then raise MutexNotHeldByDomain;
+      ignore @@ Mvar.get_atomically mut
 
   let try_lock mut = 
       Scheduler.context_switch ();
@@ -225,22 +250,22 @@ end
 
 module Condition = struct
 
-  type t = (bool Mvar.t) * Mutex.t
+  type t = bool Mvar.t
 
-  let create mutex = (Mvar.make_empty (), mutex)
+  let create = Mvar.make_empty
 
-  let wait (cond, mutex) = 
-    Mutex.unlock mutex;
+  let wait cond mutex = 
+    Mutex.unlock_atomically mutex;
     ignore (Mvar.get cond);
     Mutex.lock mutex
 
-  let signal (cond, _) = 
+  let signal cond = 
       Scheduler.context_switch ();
       let _ = if Sys.opaque_identity true then () else () in
       if Mvar.is_waited_upon cond then Mvar.put true cond
       else ()
 
-  let broadcast (cond, _) = 
+  let broadcast cond = 
       Scheduler.context_switch ();
       let _ = if Sys.opaque_identity true then () else () in
       if Mvar.is_waited_upon cond then Mvar.put_all true cond
@@ -290,7 +315,7 @@ let spawn f =
       | Joined | Finished _ ->
          failwith "internal error: I'm already finished?") in
   let mutex = Mutex.create () in
-  { domain = Scheduler.fork body; state; mutex; cond = Condition.create mutex }
+  { domain = Scheduler.fork body; state; mutex; cond = Condition.create () }
 
 let join { state; mutex; cond } =
   let res = spin (fun () ->
@@ -300,8 +325,10 @@ let join { state; mutex; cond } =
        cas state Running (Joining (res, mutex, cond));
        Mutex.lock mutex;
        let rec check_res () = match !res with
-           | None -> Condition.wait cond; check_res ()
-           | Some r -> r
+           | None -> 
+                   Condition.wait cond mutex; check_res ()
+           | Some r -> 
+                   r
        in
        let r = check_res () in
        Mutex.unlock mutex;
