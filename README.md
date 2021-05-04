@@ -1,4 +1,4 @@
-# parafuzz
+# ParaFuzz
 Multi-core OCaml concurrency bug detection tool
 
 ## Setup
