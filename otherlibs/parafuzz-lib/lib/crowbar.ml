@@ -522,8 +522,8 @@ let run_all_tests file verbosity infinity tests =
       | [] ->
         go ntests alltests alltests
       | t :: rest ->
-        (* if ntests mod 10000 = 0 then *)
-        Printf.eprintf "\r%d%!" ntests;
+        if ntests mod 10000 = 0 then
+            Printf.eprintf "\r%d%!" ntests;
         match classify_status (run_test ~mode:(`Once { chan = src_of_seed (Random.int64 (Int64.max_int));
                                                        buf = Bytes.make 256 '0';
                                                        offset = 0; len = 0 })  ~silent:true ~verbose:true t) with
